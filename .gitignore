@@ -9,3 +9,28 @@ node_modules
 /dist
 /*.db
 /queue
+
+# Go build artifacts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+hp-lite-*
+hp-lite-server-*
+go.sum
+
+# Static assets (compiled)
+/static
+/target
+
+# IDE and editor
+.claude/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Build scripts (optional)
+build-and-push.bat
+build-windows.ps1
