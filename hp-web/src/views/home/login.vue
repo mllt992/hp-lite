@@ -12,12 +12,12 @@
       <div class="login-card-left">
         <div class="login-logo">
           <img src="/logo-back.png" alt="HP-Lite Logo" class="logo-image">
-          <span class="logo-text">HP-Lite</span>
+          <span class="logo-text">内网穿透服务</span>
         </div>
 
         <div class="login-info">
-          <h2 class="info-title">内网穿透</h2>
-          <p class="info-desc">无需公网IP，轻松实现内网服务外网访问</p>
+
+          <p class="info-desc">乖乖狼科技</p>
 
           <div class="login-features">
             <div class="feature-item">

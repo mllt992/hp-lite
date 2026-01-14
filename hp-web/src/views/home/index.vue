@@ -5,15 +5,13 @@
       <div class="container">
         <div class="navbar-logo" @click="scrollToTop">
           <img src="/logo-back.png" alt="HP-Lite Logo">
-          <span class="navbar-logo-text">HP-Lite</span>
+          <span class="navbar-logo-text">内网穿透</span>
         </div>
 
         <div class="navbar-menu">
-          <ul class="navbar-links">
-            <li><a href="javascript:void(0)" data="features" @click="scrollToSection('features')">特色</a></li>
-            <li><a href="javascript:void(0)" data="policy" @click="scrollToSection('policy')">声明</a></li>
-            <li><a href="javascript:void(0)" data="contact" @click="scrollToSection('contact')">联系</a></li>
-          </ul>
+<!--          <ul class="navbar-links">-->
+<!--            <li><a href="javascript:void(0)" data="features" @click="scrollToSection('features')">介绍</a></li>-->
+<!--          </ul>-->
         </div>
 
         <div class="navbar-actions">
@@ -35,22 +33,19 @@
       <div class="container">
         <div class="hero-content">
           <div class="hero-text">
-            <h1 class="hero-title">HP-Lite内网穿透</h1>
+            <h1 class="hero-title">内网穿透服务</h1>
             <p class="hero-subtitle">
-              无需公网IP、无需路由器端口映射，让内网应用随时可以
-              通过域名进行外网访问
+              乖乖狼科技内网穿透服务
             </p>
             <div class="hero-actions">
-              <a-button size="large" ghost>
-                <a target="_blank" href="https://gitee.com/HServer/hp-lite">开源地址</a>
-              </a-button>
+<!--              <a-button size="large" ghost>-->
+
+<!--              </a-button>-->
             </div>
           </div>
-
           <div class="hero-qrcode">
             <div class="qrcode-card">
-              <img src="/wx.png" alt="微信打赏二维码">
-              <p class="qrcode-text">扫码支持我们</p>
+
             </div>
           </div>
         </div>
@@ -74,55 +69,6 @@
         </div>
       </div>
     </section>
-
-    <!-- 声明区 -->
-    <section class="policy" id="policy">
-      <div class="container">
-        <h2 class="section-title">项目许可声明（MIT License）</h2>
-        <div class="policy-content">
-          <p>版权所有 (c) [2025] [黑小马]</p>
-          <p>本内网穿透项目采用 <a href="https://opensource.org/licenses/MIT" target="_blank" rel="noopener noreferrer">MIT开源许可证</a> 授权。在使用本项目前，请您仔细阅读以下条款：</p>
-          <ol>
-            <li><strong>授权范围</strong>：您有权对本项目进行复制、使用、修改、合并、发布、分发、再授权及销售副本，可用于个人搭建、学习研究及符合法律法规的商业用途。但在所有副本或重要衍生部分中，必须保留本版权声明及许可条款。</li>
-            <li><strong>合法使用义务</strong>：本项目旨在帮助用户实现内网穿透以访问自身本地网络资源。您必须在合法范围内使用，严格遵守国家法律法规及相关规定，禁止用于任何违法活动。因违规使用导致的一切责任，由您自行承担，与原作者无关。</li>
-            <li><strong>免责声明</strong>：本项目按"现状"（AS IS）提供，作者不对其适用性、安全性或稳定性做任何明示或暗示的担保。对于因使用本项目导致的任何直接或间接损失（包括但不限于数据丢失、网络故障、安全漏洞等），作者不承担任何责任。</li>
-            <li><strong>网络安全提示</strong>：为确保内网穿透功能正常运行，您可能需要调整防火墙设置或网络配置。请在操作前充分了解相关风险，采取必要的安全防护措施，由此产生的安全问题由您自行负责。</li>
-            <li><strong>账户安全责任</strong>：如使用过程中需要创建账户及权限管理，您应妥善保管账户信息，不得擅自与他人共享，由此产生的账户安全风险由您自行承担。</li>
-            <li><strong>技术支持范围</strong>：作者提供有限的技术支持，包括项目文档及社区答疑。您应优先参考官方文档及社区资源，作者不对支持的及时性和有效性做任何保证。</li>
-            <li><strong>反馈与改进</strong>：欢迎您提出宝贵建议和反馈以帮助项目改进。如需联系我们，请通过项目地址进行沟通。</li>
-            <li><strong>衍生作品授权</strong>：基于本项目修改或衍生的作品，需采用与MIT协议兼容的开源许可进行发布，并保留原始版权信息及许可条款。</li>
-          </ol>
-          <p>使用本项目即表示您已阅读、理解并同意本许可声明的全部条款。</p>
-          <p>感谢您的支持与理解。</p>
-        </div>
-      </div>
-    </section>
-
-    <!-- 联系区 -->
-    <section class="contact" id="contact">
-      <div class="container">
-        <h2 class="section-title">联系我们</h2>
-        <div class="contact-content">
-          <div class="contact-info">
-            <span>QQ群：1065301527</span>
-          </div>
-          <div class="contact-note">
-            本站默认用户都具有互联网基础知识，和阅读文档能力，如果您阅读文档后仍对本产品有使用上的疑问，
-            我们虽有用户交流群，但不代表一定会有人工客服提供解答，因为本站规模较小，没有资金和能力提供专业的解答服务。
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- 页脚 -->
-    <footer class="footer">
-      <div class="container">
-        <p>&copy; 2025 HP-Lite 内网穿透项目</p>
-      </div>
-      <div>
-        全网数据平台合计统计
-      </div>
-    </footer>
   </div>
 </template>
 
@@ -202,46 +148,12 @@ const scrollToTop = () => {
 // 生命周期钩子
 onMounted(() => {
   window.addEventListener('scroll', handleScroll);
-  load51La()
 });
 
 onUnmounted(() => {
   window.removeEventListener('scroll', handleScroll);
-  unLoad51La()
 });
 
-
-
-const load51La = () => {
-  // 避免重复加载：检查是否已有该脚本
-  if (document.getElementById('LA-DATA-WIDGET')) return;
-
-  // 创建 script 标签
-  const script = document.createElement('script');
-  script.id = 'LA-DATA-WIDGET';
-  script.crossOrigin = 'anonymous';
-  script.charset = 'UTF-8';
-  // script.src = 'https://v6-widget.51.la/v6/3NkyaLWSCGchFoDV/quote.js?theme=0&f=12';
-  script.src = 'https://v6-widget.51.la/v6/3NkyaLWSCGchFoDV/quote.js?theme=#1690FF,#FFFFFF,#F4F4F4,#FFFFFF,#FFFFFF,#1690FF,12&f=12';
-
-  // 插入到 body 中（或 head）
-  document.body.appendChild(script);
-
-  // 监听加载状态
-  script.onload = () => {
-    console.log('51LA 脚本加载成功');
-  };
-  script.onerror = () => {
-    console.error('51LA 脚本加载失败');
-  };
-}
-
-const unLoad51La=()=>{
-  const script = document.getElementById('LA-DATA-WIDGET');
-  if (script) {
-    document.body.removeChild(script);
-  }
-}
 
 </script>
 <style scoped lang="less">
