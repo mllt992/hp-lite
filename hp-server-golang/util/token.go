@@ -14,7 +14,16 @@ import (
 	"time"
 )
 
-var aes_key = "hplite_token_key"
+var aes_key []byte
+
+// init 每次启动随机生成 AES-256 密钥，重启后之前签发的 token 自动失效
+func init() {
+	aes_key = make([]byte, 32)
+	_, err := rand.Read(aes_key)
+	if err != nil {
+		panic(fmt.Sprintf("生成随机密钥失败: %v", err))
+	}
+}
 
 // AES 加密
 func aesEncrypt(plainText, key []byte) (string, error) {
@@ -77,7 +86,7 @@ func GenerateToken(userId, role string) (string, error) {
 	plainText := fmt.Sprintf("%s|%s|%d", userId, role, timestamp)
 
 	// AES 加密并生成 Base64 编码的 Token
-	return aesEncrypt([]byte(plainText), []byte(aes_key))
+	return aesEncrypt([]byte(plainText), aes_key)
 }
 
 // 解密 Token
@@ -90,7 +99,7 @@ func DecodeToken(token string) (int, string, int64, error) {
 	}()
 
 	// 解密 Base64 编码的 Token
-	decodedText, err := aesDecrypt([]byte(token), []byte(aes_key))
+	decodedText, err := aesDecrypt([]byte(token), aes_key)
 	if err != nil {
 		return 0, "", 0, err
 	}

@@ -53,6 +53,9 @@ service.interceptors.response.use(
             })
             // 50008: Illegal token; 50012: Other clients logged in; 50014: Token expired;
             if (res.code === -2 || res.code === -3 || res.code === -4 || res.code === -5) {
+
+                userInfo.removeUserInfo()
+
                 // to re-login
                 notification.open({
                     message: "重新登录",

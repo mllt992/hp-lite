@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"hp-server-lib/log"
 	"hp-server-lib/web/controller"
+	"hp-server-lib/web/middleware"
 	"net/http"
 	"runtime/debug"
 	"strconv"
@@ -44,60 +45,60 @@ func StartWebServer(port int) {
 
 	mux.HandleFunc("/user/login", controller.LoginController{}.LoginHandler)
 	clientUserController := controller.ClientUserController{}
-	mux.HandleFunc("/client/user/saveUser", clientUserController.Add)
-	mux.HandleFunc("/client/user/list", clientUserController.List)
-	mux.HandleFunc("/client/user/removeUser", clientUserController.Del)
+	mux.HandleFunc("/client/user/saveUser", middleware.Admin(clientUserController.Add))
+	mux.HandleFunc("/client/user/list", middleware.Admin(clientUserController.List))
+	mux.HandleFunc("/client/user/removeUser", middleware.Admin(clientUserController.Del))
 
 	deviceController := controller.DeviceController{}
-	mux.HandleFunc("/client/device/list", deviceController.List)
-	mux.HandleFunc("/client/device/add", deviceController.Add)
-	mux.HandleFunc("/client/device/update", deviceController.Update)
-	mux.HandleFunc("/client/device/remove", deviceController.Del)
-	mux.HandleFunc("/client/device/stop", deviceController.Stop)
+	mux.HandleFunc("/client/device/list", middleware.Auth(deviceController.List))
+	mux.HandleFunc("/client/device/add", middleware.Auth(deviceController.Add))
+	mux.HandleFunc("/client/device/update", middleware.Auth(deviceController.Update))
+	mux.HandleFunc("/client/device/remove", middleware.Auth(deviceController.Del))
+	mux.HandleFunc("/client/device/stop", middleware.Auth(deviceController.Stop))
 
 	configController := controller.ConfigController{}
-	mux.HandleFunc("/client/config/getDeviceKey", configController.GetDeviceKey)
-	mux.HandleFunc("/client/config/getConfigList", configController.GetConfigList)
-	mux.HandleFunc("/client/config/removeConfig", configController.RemoveConfig)
-	mux.HandleFunc("/client/config/refConfig", configController.RefConfig)
-	mux.HandleFunc("/client/config/changeStatus", configController.ChangeStatus)
-	mux.HandleFunc("/client/config/addConfig", configController.Add)
-	mux.HandleFunc("/client/config/keyword", configController.Keyword)
+	mux.HandleFunc("/client/config/getDeviceKey", middleware.Auth(configController.GetDeviceKey))
+	mux.HandleFunc("/client/config/getConfigList", middleware.Auth(configController.GetConfigList))
+	mux.HandleFunc("/client/config/removeConfig", middleware.Auth(configController.RemoveConfig))
+	mux.HandleFunc("/client/config/refConfig", middleware.Auth(configController.RefConfig))
+	mux.HandleFunc("/client/config/changeStatus", middleware.Auth(configController.ChangeStatus))
+	mux.HandleFunc("/client/config/addConfig", middleware.Auth(configController.Add))
+	mux.HandleFunc("/client/config/keyword", middleware.Auth(configController.Keyword))
 
 	monitorController := controller.MonitorController{}
-	mux.HandleFunc("/client/monitor/list", monitorController.List)
-	mux.HandleFunc("/client/monitor/detail", monitorController.Detail)
+	mux.HandleFunc("/client/monitor/list", middleware.Auth(monitorController.List))
+	mux.HandleFunc("/client/monitor/detail", middleware.Auth(monitorController.Detail))
 
 	domainController := controller.DomainController{}
-	mux.HandleFunc("/client/domain/list", domainController.GetDomainList)
-	mux.HandleFunc("/client/domain/remove", domainController.RemoveDomain)
-	mux.HandleFunc("/client/domain/add", domainController.Add)
-	mux.HandleFunc("/client/domain/gen", domainController.Gen)
-	mux.HandleFunc("/client/domain/query", domainController.Query)
+	mux.HandleFunc("/client/domain/list", middleware.Auth(domainController.GetDomainList))
+	mux.HandleFunc("/client/domain/remove", middleware.Auth(domainController.RemoveDomain))
+	mux.HandleFunc("/client/domain/add", middleware.Auth(domainController.Add))
+	mux.HandleFunc("/client/domain/gen", middleware.Auth(domainController.Gen))
+	mux.HandleFunc("/client/domain/query", middleware.Auth(domainController.Query))
 
 	wafController := controller.WafController{}
-	mux.HandleFunc("/client/waf/save", wafController.Add)
-	mux.HandleFunc("/client/waf/list", wafController.List)
-	mux.HandleFunc("/client/waf/remove", wafController.Del)
+	mux.HandleFunc("/client/waf/save", middleware.Auth(wafController.Add))
+	mux.HandleFunc("/client/waf/list", middleware.Auth(wafController.List))
+	mux.HandleFunc("/client/waf/remove", middleware.Auth(wafController.Del))
 
 	safeController := controller.SafeController{}
-	mux.HandleFunc("/client/safe/save", safeController.Add)
-	mux.HandleFunc("/client/safe/list", safeController.List)
-	mux.HandleFunc("/client/safe/remove", safeController.Del)
-	mux.HandleFunc("/client/safe/query", safeController.Query)
+	mux.HandleFunc("/client/safe/save", middleware.Auth(safeController.Add))
+	mux.HandleFunc("/client/safe/list", middleware.Auth(safeController.List))
+	mux.HandleFunc("/client/safe/remove", middleware.Auth(safeController.Del))
+	mux.HandleFunc("/client/safe/query", middleware.Auth(safeController.Query))
 
 	reverseController := controller.ReverseController{}
-	mux.HandleFunc("/client/reverse/save", reverseController.Add)
-	mux.HandleFunc("/client/reverse/list", reverseController.List)
-	mux.HandleFunc("/client/reverse/remove", reverseController.Del)
+	mux.HandleFunc("/client/reverse/save", middleware.Auth(reverseController.Add))
+	mux.HandleFunc("/client/reverse/list", middleware.Auth(reverseController.List))
+	mux.HandleFunc("/client/reverse/remove", middleware.Auth(reverseController.Del))
 
 	forwardController := controller.ForwardController{}
-	mux.HandleFunc("/client/forward/save", forwardController.Add)
-	mux.HandleFunc("/client/forward/list", forwardController.List)
-	mux.HandleFunc("/client/forward/remove", forwardController.Del)
+	mux.HandleFunc("/client/forward/save", middleware.Auth(forwardController.Add))
+	mux.HandleFunc("/client/forward/list", middleware.Auth(forwardController.List))
+	mux.HandleFunc("/client/forward/remove", middleware.Auth(forwardController.Del))
 
 	giscusController := controller.GiscusController{}
-	mux.HandleFunc("/client/giscus/token", giscusController.Token)
+	mux.HandleFunc("/client/giscus/token", middleware.Auth(giscusController.Token))
 
 	muxWithRecovery := recoveryMiddleware(mux)
 	log.Error(http.ListenAndServe(":"+strconv.Itoa(port), muxWithRecovery))
