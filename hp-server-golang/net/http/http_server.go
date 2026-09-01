@@ -4,7 +4,6 @@ import (
 	"hp-server-lib/log"
 	"net"
 	"net/http"
-	"os"
 	"strings"
 )
 
@@ -29,7 +28,8 @@ func StartHttpServer() {
 	log.Info("HTTP代理服务启动")
 	err := http.ListenAndServe(":80", mux)
 	if err != nil {
+		// 不要 os.Exit(1)：一个端口冲突会顺手把 DB、QUIC、TCP、Web 后台全带走。
+		// 返回后外层 goroutine 自然结束，由 main 的 WaitGroup 收尾。
 		log.Errorf("HTTP代理服务启动失败: %v", err)
-		os.Exit(1)
 	}
 }

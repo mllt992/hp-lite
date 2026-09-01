@@ -7,10 +7,12 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"hp-server-lib/log"
 	net2 "hp-server-lib/net/base"
 	"hp-server-lib/protol"
 	"math/big"
+	"net"
 	"strconv"
 
 	"github.com/quic-go/quic-go"
@@ -72,9 +74,15 @@ func (quicServer *HpQuicServer) StartServer(port int) {
 		for {
 			conn, err := listener.Accept(context.Background())
 			if err != nil {
+				// listener 被主动关闭（Stop/Shutdown）属于正常退出，不要 spin 成 busy loop
+				if errors.Is(err, quic.ErrServerClosed) || errors.Is(err, net.ErrClosed) {
+					return
+				}
 				log.Error("QUIC获取连接错误：" + err.Error())
+				continue
 			}
 			go func() {
+				defer conn.CloseWithError(0, "")
 				for {
 					stream, err := conn.AcceptStream(context.Background())
 					if err != nil {

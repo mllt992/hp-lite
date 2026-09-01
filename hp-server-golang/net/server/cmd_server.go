@@ -2,6 +2,7 @@ package server
 
 import (
 	"bufio"
+	"errors"
 	"hp-server-lib/log"
 	"net"
 	"strconv"
@@ -28,15 +29,15 @@ func (tcpServer *CmdServer) StartServer(port int) {
 	//设置读
 	go func() {
 		for {
-			if tcpServer.listener == nil {
-				return
-			}
 			conn, err := listener.Accept()
-			if err == nil {
-				tcpServer.handler(conn)
-			} else {
+			if err != nil {
+				if errors.Is(err, net.ErrClosed) {
+					return
+				}
 				log.Error("TCP错误连接:", err)
+				continue
 			}
+			tcpServer.handler(conn)
 		}
 	}()
 	log.Infof("指令传输服务启动成功TCP:%d", port)

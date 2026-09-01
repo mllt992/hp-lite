@@ -90,22 +90,36 @@ func GenerateToken(userId, role string) (string, error) {
 }
 
 // 解密 Token
-func DecodeToken(token string) (int, string, int64, error) {
+func DecodeToken(token string) (resultNum int, resultRole string, resultTs int64, err error) {
+	// 关键：旧实现 recover 后不修改返回值，导致 panic 也会以 err=nil 返回，
+	// 调用方拿到 0/""/0 当合法 token 处理，等于鉴权绕过。这里用命名返回值 + recover 透传。
 	defer func() {
-		if err := recover(); err != nil {
-			// 捕获异常并记录日志
-			log.Errorf("解析Token错误: %v\n栈情况: %s", err, string(debug.Stack()))
+		if r := recover(); r != nil {
+			log.Errorf("解析Token错误: %v\n栈情况: %s", r, string(debug.Stack()))
+			resultNum = 0
+			resultRole = ""
+			resultTs = 0
+			err = fmt.Errorf("token 解析异常: %v", r)
 		}
 	}()
 
 	// 解密 Base64 编码的 Token
-	decodedText, err := aesDecrypt([]byte(token), aes_key)
-	if err != nil {
-		return 0, "", 0, err
+	decodedText, decErr := aesDecrypt([]byte(token), aes_key)
+	if decErr != nil {
+		return 0, "", 0, decErr
 	}
 	parts := strings.Split(decodedText, "|")
-	num, err := strconv.Atoi(parts[0])
-	num2, err := strconv.ParseInt(parts[2], 10, 64)
-	// 返回解密后的明文
+	// 显式校验长度，避免对空切片 / 越界 panic
+	if len(parts) < 3 {
+		return 0, "", 0, fmt.Errorf("token 格式错误")
+	}
+	num, atoiErr := strconv.Atoi(parts[0])
+	if atoiErr != nil {
+		return 0, "", 0, fmt.Errorf("token userId 解析失败: %w", atoiErr)
+	}
+	num2, piErr := strconv.ParseInt(parts[2], 10, 64)
+	if piErr != nil {
+		return 0, parts[1], 0, fmt.Errorf("token timestamp 解析失败: %w", piErr)
+	}
 	return num, parts[1], num2, nil
 }

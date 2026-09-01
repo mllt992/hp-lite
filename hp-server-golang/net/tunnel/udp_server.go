@@ -50,6 +50,8 @@ func (udpServer *UdpServer) StartServer(port int) bool {
 			}
 			bytes := buffer[:n]
 			ip := util.GetClientIPFromUDP(addr)
+			// 注意：这里必须用 continue，不能用 break —— break 会跳出整个 read loop，
+			// 导致一条被黑白名单命中的包直接干掉整条 UDP 隧道。
 			if len(udpServer.userInfo.AllowedIps) > 0 {
 				ips := udpServer.userInfo.AllowedIps
 				flag := true
@@ -60,16 +62,21 @@ func (udpServer *UdpServer) StartServer(port int) bool {
 					}
 				}
 				if flag {
-					break
+					continue
 				}
 			}
 
 			if len(udpServer.userInfo.BlockedIps) > 0 {
 				ips := udpServer.userInfo.BlockedIps
+				blocked := false
 				for _, item := range ips {
 					if util.IsIPInCIDR(ip, item) {
+						blocked = true
 						break
 					}
+				}
+				if blocked {
+					continue
 				}
 			}
 			value, ok := udpServer.cache.Load(addr.String())

@@ -14,6 +14,7 @@ import (
 	syslog "log"
 	"os"
 	"path/filepath"
+	"sync"
 
 	daemon "github.com/kardianos/service"
 	"gopkg.in/yaml.v3"
@@ -27,6 +28,15 @@ var configPath string    // 配置文件路径
 // program 实现 daemon.Interface 接口
 type program struct {
 	stopChan chan struct{} // 优雅退出信号通道
+	// closers 收集所有可关闭的服务，Stop 时按顺序释放
+	closers []namedCloser
+	wg      sync.WaitGroup
+}
+
+// namedCloser 描述一个可关闭的资源（名字用于日志，Close 用于释放）。
+type namedCloser struct {
+	name  string
+	close func()
 }
 
 // Start 服务启动入口（实现接口）
@@ -47,8 +57,38 @@ func (p *program) Stop(s daemon.Service) error {
 	} else {
 		logger.Info("服务正在停止")
 	}
+	// 收尾：先按注册顺序反向关闭所有服务，再通知 run 退出
+	p.shutdown()
 	close(p.stopChan) // 发送退出信号
+	p.wg.Wait()
 	return nil
+}
+
+// shutdown 统一关闭所有 server（先关 listener，再让 goroutine 退出）
+func (p *program) shutdown() {
+	for i := len(p.closers) - 1; i >= 0; i-- {
+		c := p.closers[i]
+		if c.close == nil {
+			continue
+		}
+		logger.Infof("正在关闭 %s ...", c.name)
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					logger.Errorf("关闭 %s panic: %v", c.name, r)
+				}
+			}()
+			c.close()
+		}()
+	}
+}
+
+// register 注册一个可关闭的资源
+func (p *program) register(name string, fn func()) {
+	if fn == nil {
+		return
+	}
+	p.closers = append(p.closers, namedCloser{name: name, close: fn})
 }
 
 // run 核心业务逻辑（整合原有所有服务启动逻辑）
@@ -61,7 +101,7 @@ func (p *program) run() {
 	logger.Info("配置文件加载成功")
 
 	// 2. 启动各类服务（带退出信号监听）
-	go p.starServer()
+	p.starServer()
 
 	// 阻塞等待退出信号
 	<-p.stopChan
@@ -92,21 +132,50 @@ func loadConfig() error {
 // startServer 启动服务
 func (p *program) starServer() {
 	//指令控制
-	tcpServer := server.NewCmdServer()
-	go tcpServer.StartServer(config.ConfigData.Cmd.Port)
+	cmdServer := server.NewCmdServer()
+	p.wg.Add(1)
+	go func() {
+		defer p.wg.Done()
+		cmdServer.StartServer(config.ConfigData.Cmd.Port)
+	}()
+	p.register("cmd-server", func() { cmdServer.CLose() })
 	//数据传输方式1
 	quicServer := server.NewHpQuicServer(server.NewHPHandler())
-	go quicServer.StartServer(config.ConfigData.Tunnel.Port)
+	p.wg.Add(1)
+	go func() {
+		defer p.wg.Done()
+		quicServer.StartServer(config.ConfigData.Tunnel.Port)
+	}()
+	p.register("quic-server", func() { quicServer.CLose() })
 	//数据传输方式2
 	hpTcpServer := server.NewHPTcpServer(server.NewHPHandler())
-	go hpTcpServer.StartServer(config.ConfigData.Tunnel.Port)
+	p.wg.Add(1)
+	go func() {
+		defer p.wg.Done()
+		hpTcpServer.StartServer(config.ConfigData.Tunnel.Port)
+	}()
+	p.register("hp-tcp-server", func() { hpTcpServer.CLose() })
 	//管理后台
-	go web.StartWebServer(config.ConfigData.Admin.Port)
+	p.wg.Add(1)
+	go func() {
+		defer p.wg.Done()
+		web.StartWebServer(config.ConfigData.Admin.Port)
+	}()
+	// web.StartWebServer 当前用 http.ListenAndServe，没有 server 句柄，无法在此处关闭。
+	// 如果后续想干净停服，可改为 server.ListenAndServe + 存 *http.Server。
 	//初始化正向代理服务
 	go service.InitForward()
 	if config.ConfigData.Tunnel.OpenDomain {
-		go http.StartHttpServer()
-		go http.StartHttpsServer()
+		p.wg.Add(1)
+		go func() {
+			defer p.wg.Done()
+			http.StartHttpServer()
+		}()
+		p.wg.Add(1)
+		go func() {
+			defer p.wg.Done()
+			http.StartHttpsServer()
+		}()
 		//缓存域名配置
 		go service.InitDomainCache()
 		go service.InitReverseECache()
@@ -120,10 +189,9 @@ func (p *program) starServer() {
 			}
 		}()
 	}
-	// 监听退出信号，优雅关闭（如果服务支持关闭方法）
+	// 监听退出信号（Stop 中会通过 shutdown 统一关资源）
 	<-p.stopChan
 	logger.Info("服务正在关闭...")
-	// 若 tcpServer 有 Stop 方法，此处添加：tcpServer.Stop()
 }
 
 // init 初始化命令行参数

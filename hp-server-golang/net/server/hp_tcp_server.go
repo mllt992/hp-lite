@@ -1,6 +1,7 @@
 package server
 
 import (
+	"errors"
 	"hp-server-lib/log"
 	net2 "hp-server-lib/net/base"
 	"hp-server-lib/protol"
@@ -35,10 +36,17 @@ func (tcpServer *HpTcpServer) StartServer(port int) {
 		for {
 			conn, err := listener.Accept()
 			if err != nil {
+				// listener 已关闭，正常退出
+				if errors.Is(err, net.ErrClosed) {
+					return
+				}
 				log.Error("TCP获取连接错误：" + err.Error())
+				continue
 			}
 			session, _ := smux.Server(conn, nil)
 			go func() {
+				defer session.Close()
+				defer conn.Close()
 				for {
 					stream, err := session.AcceptStream()
 					if err != nil {

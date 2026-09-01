@@ -2,6 +2,7 @@ package tunnel
 
 import (
 	"bufio"
+	"errors"
 	"hp-server-lib/bean"
 	"hp-server-lib/log"
 	net2 "hp-server-lib/net/base"
@@ -43,13 +44,15 @@ func (tcpServer *TcpServer) StartServer(port int) bool {
 	//设置读
 	go func() {
 		for {
-			if tcpServer.listener == nil {
-				return
-			}
 			conn, err := listener.Accept()
-			if err == nil {
-				tcpServer.handler(conn)
+			if err != nil {
+				if errors.Is(err, net.ErrClosed) {
+					return
+				}
+				log.Error("Tunnel TCP获取连接错误：" + err.Error())
+				continue
 			}
+			tcpServer.handler(conn)
 		}
 	}()
 	return true

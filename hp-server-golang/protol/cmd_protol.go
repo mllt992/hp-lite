@@ -5,10 +5,14 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"google.golang.org/protobuf/proto"
 	cmdMessage "hp-server-lib/message"
 	"io"
 )
+
+// MaxCmdPacketSize CMD 通道单包最大字节数，防止恶意/异常客户端通过声明巨大长度触发 OOM。
+const MaxCmdPacketSize = 1 << 20 // 1 MiB
 
 func CmdEncode(message *cmdMessage.CmdMessage) []byte {
 	d, _ := proto.Marshal(message)
@@ -68,6 +72,10 @@ func cmd_decode(reader *bufio.Reader) ([]byte, error) {
 	header := cmd_bytesToInt(headerAndLength[0:4])
 	length := cmd_bytesToInt(headerAndLength[4:])
 	if header == 6666 {
+		// 拒绝负数 / 超过上限的声明长度，避免 make 大切片导致 OOM 或被恶意客户端滥用。
+		if length < 0 || length > MaxCmdPacketSize {
+			return nil, errors.New("cmd_protol: 包长越界")
+		}
 		//读取 header+长度
 		data := make([]byte, 8+length)
 		//直接读完，不够的直接等待

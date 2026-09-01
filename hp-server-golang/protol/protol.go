@@ -5,10 +5,14 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"google.golang.org/protobuf/proto"
 	hpMessage "hp-server-lib/message"
 	"io"
 )
+
+// MaxPacketSize 单个 HP 消息体的最大字节数，防止恶意/异常客户端通过声明巨大长度触发 OOM。
+const MaxPacketSize = 1 << 20 // 1 MiB
 
 func Encode(message *hpMessage.HpMessage) []byte {
 	d, _ := proto.Marshal(message)
@@ -68,6 +72,10 @@ func decode(reader *bufio.Reader) ([]byte, error) {
 	header := bytesToInt(headerAndLength[0:4])
 	length := bytesToInt(headerAndLength[4:])
 	if header == 9999 {
+		// 拒绝负数 / 超过上限的声明长度，避免 make 大切片导致 OOM 或被恶意客户端滥用。
+		if length < 0 || length > MaxPacketSize {
+			return nil, errors.New("protol: 包长越界")
+		}
 		//读取 header+长度
 		data := make([]byte, 8+length)
 		//直接读完，不够的直接等待
