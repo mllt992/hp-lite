@@ -28,6 +28,8 @@ type HpClient struct {
 func NewHpClient(callMsg func(message string)) *HpClient {
 	return &HpClient{
 		CallMsg: callMsg,
+		// 关键：quit 必须初始化，否则 router_table.go 里的 close(oldHpClient.quit) 会 panic。
+		quit: make(chan struct{}),
 	}
 }
 
@@ -64,55 +66,58 @@ func (hpClient *HpClient) Connect(data *bean.LocalInnerWear) {
 func (hpClient *HpClient) GetStatus() bool {
 	hpClient.syncLock.Lock()
 	defer hpClient.syncLock.Unlock() // 确保锁最终释放
-	if hpClient.handler != nil && hpClient.conn != nil {
-		if hpClient.conn.IsTcp() {
-			if hpClient.conn.TcpSession != nil {
-				if hpClient.tcpStream == nil {
-					stream, err := hpClient.conn.TcpSession.OpenStream()
-					if err != nil {
-						hpClient.CallMsg("创建TCP检查流失败:" + err.Error())
-						return false
-					}
-					hpClient.tcpStream = stream
-				}
-				_, err := hpClient.tcpStream.Write(protol.Encode(&hpMessage.HpMessage{Type: hpMessage.HpMessage_KEEPALIVE}))
-				if err != nil {
-					hpClient.CallMsg("TCP发送心跳包错误:" + err.Error())
-					hpClient.tcpStream.Close()
-					hpClient.tcpStream = nil
-					return false
-				}
-				return true
-			} else {
-				return false
-			}
-		} else {
-			if hpClient.quicStream == nil {
-				stream, err := hpClient.conn.QuicSession.OpenStream()
-				if err != nil {
-					hpClient.CallMsg("创建QUIC检查流失败:" + err.Error())
-					return false
-				}
-				hpClient.quicStream = stream
-			}
-			_, err := hpClient.quicStream.Write(protol.Encode(&hpMessage.HpMessage{Type: hpMessage.HpMessage_KEEPALIVE}))
-			if err != nil {
-				hpClient.CallMsg("QUIC发送心跳包错误:" + err.Error())
-				hpClient.quicStream.Close()
-				hpClient.quicStream = nil
-				return false
-			}
-			return true
-		}
-	} else {
+	if hpClient.handler == nil || hpClient.conn == nil {
 		return false
 	}
+	// 每次心跳都开新 stream、写完就关。旧实现复用心跳 stream，
+	// 但 server 端 register 流程不回响应、stream 永远不释放，
+	// 每次 reconnect 还把它丢给 GC，相当于每个心跳泄漏 1 个 smux stream，跑几天就打满。
+	if hpClient.conn.IsTcp() {
+		if hpClient.conn.TcpSession == nil {
+			return false
+		}
+		stream, err := hpClient.conn.TcpSession.OpenStream()
+		if err != nil {
+			hpClient.CallMsg("创建TCP检查流失败:" + err.Error())
+			return false
+		}
+		_, werr := stream.Write(protol.Encode(&hpMessage.HpMessage{Type: hpMessage.HpMessage_KEEPALIVE}))
+		_ = stream.Close()
+		if werr != nil {
+			hpClient.CallMsg("TCP发送心跳包错误:" + werr.Error())
+			return false
+		}
+		return true
+	}
+	if hpClient.conn.QuicSession == nil {
+		return false
+	}
+	stream, err := hpClient.conn.QuicSession.OpenStream()
+	if err != nil {
+		hpClient.CallMsg("创建QUIC检查流失败:" + err.Error())
+		return false
+	}
+	_, werr := stream.Write(protol.Encode(&hpMessage.HpMessage{Type: hpMessage.HpMessage_KEEPALIVE}))
+	_ = stream.Close()
+	if werr != nil {
+		hpClient.CallMsg("QUIC发送心跳包错误:" + werr.Error())
+		return false
+	}
+	return true
 }
 
 func (hpClient *HpClient) Close() {
+	// 关 conn 前先把复用的 stream 句柄清掉，避免遗留
+	hpClient.syncLock.Lock()
+	hpClient.tcpStream = nil
+	hpClient.quicStream = nil
+	hpClient.syncLock.Unlock()
+
 	if hpClient.conn != nil {
 		hpClient.conn.Close()
-		hpClient.handler.CloseAll()
+		if hpClient.handler != nil {
+			hpClient.handler.CloseAll()
+		}
 		hpClient.conn = nil
 	}
 }

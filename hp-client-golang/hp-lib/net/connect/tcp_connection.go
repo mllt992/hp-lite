@@ -6,6 +6,7 @@ import (
 	"hp-lib/util"
 	"io"
 	"net"
+	"runtime"
 	"strconv"
 	"time"
 )
@@ -40,6 +41,12 @@ func (connection *TcpConnection) ConnectLocal(address string, handler net2.Handl
 	handler.ChannelActive(conn)
 	//设置读
 	go func() {
+		// 防止 read loop 内 panic 把连接静默打死
+		defer func() {
+			if r := recover(); r != nil {
+				call("local tcp read loop panic: " + string(runtime.Stack(nil, false)))
+			}
+		}()
 		reader := bufio.NewReader(conn)
 		for {
 			//尝试读检查连接激活
@@ -50,7 +57,10 @@ func (connection *TcpConnection) ConnectLocal(address string, handler net2.Handl
 			}
 			if reader.Buffered() > 0 {
 				data := make([]byte, reader.Buffered())
-				io.ReadFull(reader, data)
+				if _, rerr := io.ReadFull(reader, data); rerr != nil {
+					handler.ChannelInactive(conn)
+					return
+				}
 				handler.ChannelRead(conn, data)
 			}
 		}

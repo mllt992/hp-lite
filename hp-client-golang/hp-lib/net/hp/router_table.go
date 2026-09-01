@@ -102,8 +102,11 @@ func startTunnel(data *bean.LocalInnerWear, callMsg func(msg string)) {
 	//开始进行真正的映射了
 	if oldClient, ok := tunnel.Load(configKey); ok {
 		oldHpClient := oldClient.(*HpClient)
-		close(oldHpClient.quit) // 关闭旧的退出通道，让旧 goroutine 退出
-		oldHpClient.Close()     // 关闭旧连接
+		// C-2 修复：quit 现在 NewHpClient 一定会初始化，但安全起见还是做一次兜底
+		if oldHpClient.quit != nil {
+			close(oldHpClient.quit) // 关闭旧的退出通道，让旧 goroutine 退出
+		}
+		oldHpClient.Close() // 关闭旧连接
 		tunnel.Delete(data.ConfigKey)
 	}
 
@@ -120,6 +123,14 @@ func startTunnel(data *bean.LocalInnerWear, callMsg func(msg string)) {
 			tunnel.Delete(configKey)
 		}()
 
+		// 指数退避：连续失败时把 sleep 拉长，最长 5 分钟
+		const (
+			backoffMin = 5 * time.Second
+			backoffMax = 5 * time.Minute
+		)
+		nextDelay := backoffMin
+		sleepUntil := time.Time{}
+
 		for {
 			select {
 			case <-hpClient.quit:
@@ -130,10 +141,24 @@ func startTunnel(data *bean.LocalInnerWear, callMsg func(msg string)) {
 				if !ok {
 					return // 本地已删除，退出
 				}
+				// 还在退避期：跳过本轮
+				if !sleepUntil.IsZero() && time.Now().Before(sleepUntil) {
+					continue
+				}
 				status := hpClient.GetStatus()
 				if !status {
 					hpClient.CallMsg("隧道正在重新连接:" + data.LocalAddress)
 					hpClient.Connect(data)
+					// 失败一次就累加退避
+					sleepUntil = time.Now().Add(nextDelay)
+					nextDelay *= 2
+					if nextDelay > backoffMax {
+						nextDelay = backoffMax
+					}
+				} else {
+					// 连上了就重置退避
+					nextDelay = backoffMin
+					sleepUntil = time.Time{}
 				}
 				if flagStatus != status {
 					PrintTable(hpClient.CallMsg)

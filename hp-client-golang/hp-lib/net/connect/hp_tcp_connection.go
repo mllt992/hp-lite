@@ -2,11 +2,15 @@ package connect
 
 import (
 	"bufio"
-	"github.com/xtaci/smux"
+	"net"
+	"runtime"
+	"strconv"
+	"time"
+
 	net2 "hp-lib/net"
 	"hp-lib/protol"
-	"net"
-	"strconv"
+
+	"github.com/xtaci/smux"
 )
 
 type HpTcpConnection struct {
@@ -18,7 +22,8 @@ func NewHpTcpConnection() *HpTcpConnection {
 }
 
 func (connection *HpTcpConnection) ConnectHpTcp(host string, port int, handler net2.HpHandler, call func(mgs string)) *net2.MuxSession {
-	conn, err := net.Dial("tcp", host+":"+strconv.Itoa(port))
+	// 加 DialTimeout，避免对端 SYN 丢弃时一直阻塞
+	conn, err := net.DialTimeout("tcp", host+":"+strconv.Itoa(port), 10*time.Second)
 	if err != nil {
 		call("不能能连到映射服务器：" + host + ":" + strconv.Itoa(port) + " 原因：" + err.Error())
 		return nil
@@ -27,11 +32,17 @@ func (connection *HpTcpConnection) ConnectHpTcp(host string, port int, handler n
 	session, err := smux.Client(conn, nil)
 	if err != nil {
 		call("不能能连到映射服务器：" + host + ":" + strconv.Itoa(port) + " 原因：" + err.Error())
+		_ = conn.Close()
 		return nil
 	}
 	session2 := net2.NewTcpMuxSession(session)
 	handler.ChannelActive(session2)
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				call("smux accept loop panic: " + string(runtime.Stack(nil, false)))
+			}
+		}()
 		for {
 			stream, err := session.AcceptStream()
 			if err != nil {
@@ -40,6 +51,11 @@ func (connection *HpTcpConnection) ConnectHpTcp(host string, port int, handler n
 				return
 			}
 			go func() {
+				defer func() {
+					if r := recover(); r != nil {
+						call("smux stream read loop panic: " + string(runtime.Stack(nil, false)))
+					}
+				}()
 				reader := bufio.NewReader(stream)
 				//避坑点：多包问题，需要重复读取解包
 				for {

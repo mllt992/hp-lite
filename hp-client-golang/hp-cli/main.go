@@ -9,6 +9,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/kardianos/service"
@@ -24,6 +25,8 @@ type program struct {
 	deviceId   string
 	cmdClient  *cmd.CmdClient
 	stopChan   chan struct{}
+	stopOnce   sync.Once
+	wg         sync.WaitGroup
 }
 
 // 实现 service.Interface 接口的 Start 方法
@@ -44,12 +47,18 @@ func (p *program) Stop(s service.Service) error {
 	} else {
 		logger.Info("服务正在停止")
 	}
-	close(p.stopChan)
+	// 用 sync.Once 避免 kardianos 在异常情况下重复调用 Stop 导致 close panic
+	p.stopOnce.Do(func() {
+		close(p.stopChan)
+	})
+	// 等 run() 完全退出再返回，确保 reconnect goroutine 不会在进程退出后还在 Dial
+	p.wg.Wait()
 	return nil
 }
 
 // 服务核心运行逻辑
 func (p *program) run() {
+	defer p.wg.Done()
 	p.cmdClient = cmd.NewCmdClient(func(message string) {
 		logger.Info(message)
 	})
@@ -58,20 +67,48 @@ func (p *program) run() {
 	logger.Infof("已连接到服务器 %s:%d (设备ID: %s)", p.serverIp, p.serverPort, p.deviceId)
 
 	// 重连循环
+	p.wg.Add(1)
 	go func() {
+		defer p.wg.Done()
 		ticker := time.NewTicker(10 * time.Second)
 		defer ticker.Stop()
 
+		// 指数退避：连续失败时 sleep 拉长，最长 5 分钟
+		const (
+			backoffMin = 5 * time.Second
+			backoffMax = 5 * time.Minute
+		)
+		nextDelay := backoffMin
+		sleepUntil := time.Time{}
+
 		for {
 			select {
-			case <-ticker.C:
-				if !p.cmdClient.GetStatus() {
-					logger.Info("与服务器断开连接，正在重连...")
-					p.cmdClient.Connect(p.serverIp, p.serverPort, p.deviceId)
-				}
 			case <-p.stopChan:
 				logger.Info("重连循环已停止")
 				return
+			case <-ticker.C:
+				// 被 server 主动要求下线就停
+				if p.cmdClient != nil && p.cmdClient.Stopped {
+					logger.Info("收到 server DISCONNECT，重连循环退出")
+					return
+				}
+				// 还在退避期就跳过
+				if !sleepUntil.IsZero() && time.Now().Before(sleepUntil) {
+					continue
+				}
+				if p.cmdClient != nil && !p.cmdClient.GetStatus() {
+					logger.Info("与服务器断开连接，正在重连...")
+					p.cmdClient.Connect(p.serverIp, p.serverPort, p.deviceId)
+					sleepUntil = time.Now().Add(nextDelay)
+					nextDelay *= 2
+					if nextDelay > backoffMax {
+						nextDelay = backoffMax
+					}
+				} else {
+					// 连上了就重置退避
+					nextDelay = backoffMin
+					sleepUntil = time.Time{}
+				}
 			}
 		}
 	}()

@@ -4,13 +4,16 @@ import (
 	"bufio"
 	"context"
 	"crypto/tls"
-	"github.com/quic-go/quic-go"
-	net2 "hp-lib/net"
-	"hp-lib/protol"
-	"os"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
+
+	net2 "hp-lib/net"
+	"hp-lib/protol"
+	"os"
+
+	"github.com/quic-go/quic-go"
 )
 
 type HpQuicConnection struct {
@@ -58,6 +61,11 @@ func (connection *HpQuicConnection) ConnectHpQuic(host string, port int, handler
 
 	handler.ChannelActive(session2)
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				call("quic accept loop panic: " + string(runtime.Stack(nil, false)))
+			}
+		}()
 		for {
 			stream, err := conn.AcceptStream(context.Background())
 			if err != nil {
@@ -66,6 +74,11 @@ func (connection *HpQuicConnection) ConnectHpQuic(host string, port int, handler
 				return
 			}
 			go func() {
+				defer func() {
+					if r := recover(); r != nil {
+						call("quic stream read loop panic: " + string(runtime.Stack(nil, false)))
+					}
+				}()
 				reader := bufio.NewReader(stream)
 				//避坑点：多包问题，需要重复读取解包
 				for {

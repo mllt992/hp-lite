@@ -79,9 +79,26 @@ func (h *HpClientHandler) ChannelRead(stream *net2.MuxStream, data interface{}) 
 }
 
 func (h *HpClientHandler) ChannelInactive(stream *net2.MuxStream) {
-	if stream != nil {
-		stream.Close()
+	if stream == nil {
+		return
 	}
+	// 反向索引：ChannelInactive 只知道 stream，不知道 channelId。
+	// 遍历 WNConnGroup 找持有这个 stream 的条目并清理。
+	// 旧实现直接 close stream 但不删 WNConnGroup 条目，
+	// 一旦 server 是异常断开（不发 DISCONNECTED），条目永久残留。
+	WNConnGroup.Range(func(key, value any) bool {
+		wToN, ok := value.(*bean.WtoN)
+		if !ok || wToN == nil {
+			return true
+		}
+		if wToN.W == stream {
+			// 拿到 channelId，复用 Close 流程（写 DISCONNECTED、关流、删 map）
+			h.Close(wToN.ChannelId)
+			return false
+		}
+		return true
+	})
+	stream.Close()
 }
 
 // connected 创建内网的独立连接隧道，同时外网也重新建立一个新的
@@ -156,19 +173,21 @@ func closeHandler(key, value interface{}) {
 
 // Close 删除内网的连接通道
 func (h *HpClientHandler) Close(channelId string) {
-	load, ok := WNConnGroup.Load(channelId)
-	if ok {
-		wToN := load.(*bean.WtoN)
-		if wToN != nil {
-			if wToN.N != nil {
-				wToN.N.Close()
-			}
-			if wToN.W != nil {
-				wToN.W.Write(protol.Encode(&hpMessage.HpMessage{Type: hpMessage.HpMessage_DISCONNECTED, MetaData: &hpMessage.HpMessage_MetaData{ChannelId: channelId}}))
-				wToN.W.Close()
-			}
-			WNConnGroup.Delete(wToN.ChannelId)
-		}
+	load, ok := WNConnGroup.LoadAndDelete(channelId)
+	if !ok {
+		return
+	}
+	wToN, ok := load.(*bean.WtoN)
+	if !ok || wToN == nil {
+		return
+	}
+	if wToN.N != nil {
+		_ = wToN.N.Close()
+	}
+	if wToN.W != nil {
+		// stream 可能已经因对端断开变成半死状态，写入会失败；忽略错误即可
+		_, _ = wToN.W.Write(protol.Encode(&hpMessage.HpMessage{Type: hpMessage.HpMessage_DISCONNECTED, MetaData: &hpMessage.HpMessage_MetaData{ChannelId: channelId}}))
+		_ = wToN.W.Close()
 	}
 }
 
